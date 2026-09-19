@@ -1,0 +1,235 @@
+/* Design tokens. Status colors live in status.ts because the map needs them in JS too. */
+:root {
+  --paper: #edf1f2;
+  --surface: #ffffff;
+  --ink: #16242c;
+  --muted: #5b6b73;
+  --line: #d3dce0;
+  --water: #0f5e7a;
+  --water-soft: #e1edf1;
+  --danger: #c53030;
+
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --shadow-panel: 0 8px 28px rgba(22, 36, 44, 0.18);
+
+  font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+h1, h2 { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+
+.muted { color: var(--muted); }
+.numeric { font-variant-numeric: tabular-nums; }
+
+/* ---------- Layout ---------- */
+
+.app {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+}
+
+.app-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--ink);
+  color: #fff;
+}
+.app-header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.map-area { position: relative; min-height: 0; }
+.map { position: absolute; inset: 0; }
+.leaflet-container { font: inherit; }
+.leaflet-control-attribution { font-size: 11px; }
+
+/* ---------- Buttons ---------- */
+
+.button {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  cursor: pointer;
+  font-weight: 500;
+}
+.button:hover:not(:disabled) { border-color: var(--muted); }
+.button:disabled { opacity: 0.5; cursor: default; }
+.button-primary { background: var(--water); border-color: var(--water); color: #fff; }
+.button-primary:hover:not(:disabled) { background: #0b4a61; border-color: #0b4a61; }
+.button-danger { color: var(--danger); border-color: currentColor; }
+
+.link-button { flex: none; padding: 0; border: 0; background: none; color: var(--water); font-weight: 600; cursor: pointer; }
+.icon-button { border: 0; background: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--muted); }
+
+/* ---------- Filters ---------- */
+
+.filters { padding: 16px 16px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 12px; }
+.filters fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.filters legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; padding: 0; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.chip[aria-pressed="true"] { background: var(--water-soft); border-color: var(--water); color: var(--water); font-weight: 600; }
+
+.area-filter {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--water-soft);
+  border-radius: var(--radius-s);
+  font-size: 0.88rem;
+}
+
+/* ---------- List ---------- */
+
+.asset-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.asset-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.asset-row:hover { background: var(--paper); }
+.asset-row[aria-current="true"] { background: var(--water-soft); box-shadow: inset 3px 0 0 var(--water); }
+.asset-row-name { font-weight: 600; }
+.asset-row-meta { grid-column: 2; font-size: 0.85rem; color: var(--muted); }
+
+.list-message { padding: 16px; color: var(--muted); }
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.pager span { margin-right: auto; color: var(--muted); }
+
+/* ---------- Status ---------- */
+
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ---------- Map overlays ---------- */
+
+/* Leaflet's own panes sit at z-index 400-700; overlays go above them. */
+.map-overlay { position: absolute; z-index: 1000; }
+.map-overlay-top { top: 12px; left: 50%; transform: translateX(-50%); }
+.map-overlay-top .button { box-shadow: var(--shadow-panel); }
+.map-overlay-legend {
+  left: 12px;
+  bottom: 24px;
+  display: flex;
+  gap: 14px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-s);
+  box-shadow: 0 1px 4px rgba(22, 36, 44, 0.2);
+  font-size: 0.85rem;
+}
+.map-overlay-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.map-overlay-notice {
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius-s);
+  font-size: 0.88rem;
+}
+
+/* ---------- Side panel ---------- */
+
+.panel {
+  position: absolute;
+  z-index: 1100;
+  top: 12px;
+  right: 12px;
+  width: 400px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 18px 20px 20px;
+  background: var(--surface);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-panel);
+}
+.panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.panel-header h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+
+.detail-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.detail-type { color: var(--muted); font-weight: 500; }
+.detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 10px 12px; margin: 0 0 20px; }
+.detail-grid dt { color: var(--muted); font-size: 0.9rem; }
+.detail-grid dd { margin: 0; }
+
+/* ---------- Form ---------- */
+
+.asset-form { display: grid; gap: 14px; }
+.field { display: grid; align-content: start; gap: 4px; min-width: 0; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px; }
+.field-label { font-size: 0.85rem; font-weight: 600; }
+.field-hint { font-size: 0.82rem; color: var(--muted); }
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+.field-error, .form-error { color: var(--danger); font-size: 0.85rem; }
+.form-error { margin: 0; }
+
+.picker-map { height: 200px; border-radius: var(--radius-s); border: 1px solid var(--line); cursor: crosshair; }
+.picker-map .leaflet-grab { cursor: crosshair; }
+
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
