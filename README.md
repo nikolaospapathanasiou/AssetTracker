@@ -117,8 +117,6 @@ The resource shape matches the seed file (snake_case), so the data contract stay
 
 **Offset pagination with a total.** Simple, lets the UI show "26–50 of 137", and fine at this size. With a large or fast-changing table I'd switch to keyset (cursor) pagination on `(name, id)`, because offsets get slow and rows can shift between pages.
 
-**"Never inspected" is a column check, not an invented rule.** The obvious richer version of this filter is "overdue", but that needs an inspection interval, and neither the brief nor the data says what it should be. The seed dates run evenly from 2000 to 2025, so any interval I picked would set the size of the answer: five years flags 77% of the fleet, ten years 55%. That is a business rule I would be making up. The filter is instead the thing the data actually states, `last_inspected_at IS NULL`, which needs no explaining and cannot be wrong. A real interval belongs in configuration, alongside the inspection history table under "what I'd do next".
-
 **Filtering and counting happen in SQL.** Both could be done in JavaScript over the rows already fetched, but the list is paginated, so the client only ever holds 25 of them. Only the server sees the whole matching set it has to page, count and summarise. So `uninspected=true` is one `IS NULL` condition in the existing WHERE builder, and the summary is a single query where `count(*) FILTER (WHERE ...)` puts five aggregates into one index scan instead of five round trips.
 
 **Each count ignores the filter its own chip controls.** This is what makes the numbers on the chips trustworthy. If the status counts honoured `status`, picking "Critical" would leave OK and Warning reading 0, which is both useless and a dead end. If the inspection count ignored `status` as well, it would keep saying 45 while the list showed only OK assets, which is worse: a number that looks filtered and is not. So the repository splits the filters into a `scope` that no chip owns (type, area, radius) and the two chip filters. `scope` goes in the WHERE; the other two move into the `FILTER` clauses, where each aggregate picks the ones that apply to it. The list still joins all three into one WHERE, so it is unaffected.
@@ -137,20 +135,3 @@ The resource shape matches the seed file (snake_case), so the data contract stay
 - The side panel is a single state value (`view` / `edit` / `create`), so impossible combinations can't happen.
 - The list and the map run separate queries: the list pages 25 at a time, the map asks for up to 500 in view. If there are more, the map says so instead of silently dropping markers.
 - The chip counts are a third query on the same filters. It is cached under the same `assets` key, so a create or an edit refreshes the counts along with everything else.
-
-**Leaflet.** Mature, small, no API key, and plenty for ~150 points. I used circle markers: color-coded by status, no marker image files to bundle, and drawn in priority order so a critical asset is never hidden behind an OK one in a dense area. MapLibre would be the pick for vector tiles or thousands of points.
-
-## Deliberately skipped
-
-- Auth, mobile layout, deployment, accessibility audit (out of scope per the brief).
-- Marker clustering. With the data grouped in four cities, clustering would be the next UX improvement.
-- Frontend tests. With limited time, the tests go where bugs are most likely and most costly: the geo queries and validation rules, tested against a real PostGIS database. Next would be a form test (server errors map onto fields) and a Playwright smoke test.
-- Text search, sorting options, bulk edits.
-- Migration tooling. `schema.sql` is idempotent (`IF NOT EXISTS`); a real project would use node-pg-migrate or similar.
-
-## What I'd do next
-
-1. Marker clustering, and draw the area/radius search on the map.
-2. Optimistic concurrency for edits (`version` column, 409 on conflict).
-3. Keyset pagination and an OpenAPI spec generated from the Zod schemas.
-4. Inspection history as its own table instead of a single `last_inspected_at`.
