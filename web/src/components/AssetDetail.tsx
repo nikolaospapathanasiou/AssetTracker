@@ -1,5 +1,6 @@
 import type { Asset } from "@asset-tracker/shared";
 import { TYPE_LABEL, formatDate } from "../status";
+import { NeverInspectedBadge } from "./NeverInspectedBadge";
 import { StatusBadge } from "./StatusBadge";
 
 interface Props {
@@ -15,6 +16,7 @@ export function AssetDetail({ asset, isDeleting, onEdit, onDelete }: Props) {
       <div className="detail-heading">
         <StatusBadge status={asset.status} />
         <span className="detail-type">{TYPE_LABEL[asset.type]}</span>
+        <NeverInspectedBadge asset={asset} />
       </div>
 
       <dl className="detail-grid">

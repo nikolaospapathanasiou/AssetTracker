@@ -11,15 +11,16 @@ const pool = createPool(process.env.TEST_DATABASE_URL ?? "postgres://postgres:po
 const app = createApp(pool, { logRequests: false });
 
 // A small, hand-made fixture with known positions.
+// Two of the four have never been inspected, so the uninspected filter has both cases to sort.
 const base = { installed_at: "2020-01-01", last_inspected_at: null, notes: "" } as const;
 const fixtures: Asset[] = [
-  // Boston downtown
+  // Boston downtown, never inspected
   { ...base, id: "00000000-0000-4000-8000-000000000001", name: "Pipe Boston", type: "pipe", status: "ok", lat: 42.3601, lng: -71.0589 },
   // ~1.1 km north of the first one
-  { ...base, id: "00000000-0000-4000-8000-000000000002", name: "Valve Boston", type: "valve", status: "critical", lat: 42.3701, lng: -71.0589 },
+  { ...base, id: "00000000-0000-4000-8000-000000000002", name: "Valve Boston", type: "valve", status: "critical", lat: 42.3701, lng: -71.0589, last_inspected_at: "2025-06-01" },
   // New York
-  { ...base, id: "00000000-0000-4000-8000-000000000003", name: "Hydrant NYC", type: "hydrant", status: "warning", lat: 40.7128, lng: -74.006 },
-  // Chicago
+  { ...base, id: "00000000-0000-4000-8000-000000000003", name: "Hydrant NYC", type: "hydrant", status: "warning", lat: 40.7128, lng: -74.006, last_inspected_at: "2022-04-10" },
+  // Chicago, never inspected
   { ...base, id: "00000000-0000-4000-8000-000000000004", name: "Sensor Chicago", type: "sensor", status: "critical", lat: 41.8781, lng: -87.6298 },
 ];
 
@@ -61,6 +62,21 @@ describe("GET /api/assets", () => {
     const res = await request(app).get("/api/assets?limit=2&offset=2").expect(200);
     expect(names(res)).toEqual(["Sensor Chicago", "Valve Boston"]);
     expect(res.body.page).toEqual({ limit: 2, offset: 2, total: 4 });
+  });
+
+  it("filters to assets with no inspection on record", async () => {
+    const res = await request(app).get("/api/assets?uninspected=true").expect(200);
+    expect(names(res)).toEqual(["Pipe Boston", "Sensor Chicago"]);
+    expect(res.body.page.total).toBe(2);
+  });
+
+  it("combines uninspected with the other filters", async () => {
+    const res = await request(app).get("/api/assets?uninspected=true&status=critical").expect(200);
+    expect(names(res)).toEqual(["Sensor Chicago"]);
+  });
+
+  it("rejects uninspected values other than true", async () => {
+    await request(app).get("/api/assets?uninspected=false").expect(400);
   });
 
   it("rejects invalid query params with a 400 that explains why", async () => {

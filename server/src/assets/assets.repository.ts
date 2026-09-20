@@ -16,6 +16,9 @@ function buildWhere(q: ListQuery) {
 
   if (q.type) conditions.push(`type = ANY(${param(q.type)})`);
   if (q.status) conditions.push(`status = ANY(${param(q.status)})`);
+  // Filtered in SQL rather than in the client, because the list is paginated:
+  // only the server sees the whole matching set it has to page and count.
+  if (q.uninspected) conditions.push(`last_inspected_at IS NULL`);
 
   if (q.bbox) {
     const { minLng, minLat, maxLng, maxLat } = q.bbox;

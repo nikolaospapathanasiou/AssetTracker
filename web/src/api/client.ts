@@ -6,6 +6,7 @@ export interface ListParams {
   types: AssetType[];
   statuses: AssetStatus[];
   bbox: Bbox | null;
+  uninspected: boolean;
   limit: number;
   offset: number;
 }
@@ -37,6 +38,8 @@ function toQueryString(p: ListParams) {
   if (p.types.length) qs.set("type", p.types.join(","));
   if (p.statuses.length) qs.set("status", p.statuses.join(","));
   if (p.bbox) qs.set("bbox", p.bbox.join(","));
+  // Only ever sent when switched on: the API rejects uninspected=false on purpose.
+  if (p.uninspected) qs.set("uninspected", "true");
   return qs.toString();
 }
 

@@ -13,6 +13,10 @@ const csvEnum = <T extends readonly [string, ...string[]]>(values: T) =>
 // "1.5" -> 1.5 (z.number() rejects NaN, so "abc" fails here)
 const num = z.string().trim().min(1).transform(Number).pipe(z.number({ error: "Must be a number" }));
 
+// A flag that is only ever switched on. "uninspected=false" is rejected rather than accepted
+// as a no-op, because leaving the param out already means "don't filter on inspections".
+const trueFlag = z.literal("true", { error: "Only uninspected=true is supported" }).transform(() => true);
+
 // bbox=minLng,minLat,maxLng,maxLat (same order as GeoJSON and PostGIS).
 const bbox = z
   .string()
@@ -35,6 +39,7 @@ export const ListQuerySchema = z
   .strictObject({
     type: csvEnum(ASSET_TYPES).optional(),
     status: csvEnum(ASSET_STATUSES).optional(),
+    uninspected: trueFlag.optional(),
     bbox: bbox.optional(),
     // Radius search: all three params go together.
     lat: num.pipe(z.number().min(-90).max(90)).optional(),

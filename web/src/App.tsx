@@ -28,7 +28,7 @@ export function App() {
   const [panel, setPanel] = useState<Panel>(null);
   const [mapView, setMapView] = useState<MapView>({ center: [39.5, -79], zoom: 5 });
 
-  const shared = { types: filters.types, statuses: filters.statuses, bbox: filters.bbox };
+  const shared = { types: filters.types, statuses: filters.statuses, bbox: filters.bbox, uninspected: filters.uninspected };
   const list = useAssetList({ ...shared, limit: PAGE_SIZE, offset: filters.page * PAGE_SIZE });
   const markers = useAssetList({ ...shared, limit: MAP_LIMIT, offset: 0 });
 

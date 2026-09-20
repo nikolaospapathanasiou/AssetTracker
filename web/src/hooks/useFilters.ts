@@ -6,6 +6,7 @@ export interface Filters {
   types: AssetType[];
   statuses: AssetStatus[];
   bbox: Bbox | null;
+  uninspected: boolean;
   page: number;
 }
 
@@ -20,7 +21,13 @@ function readFilters(): Filters {
   const bbox = bboxParts?.length === 4 && bboxParts.every(Number.isFinite) ? (bboxParts as Bbox) : null;
   const page = Math.max(0, Number(qs.get("page")) || 0);
 
-  return { types: list("type", ASSET_TYPES), statuses: list("status", ASSET_STATUSES), bbox, page };
+  return {
+    types: list("type", ASSET_TYPES),
+    statuses: list("status", ASSET_STATUSES),
+    bbox,
+    uninspected: qs.get("uninspected") === "true",
+    page,
+  };
 }
 
 function writeFilters(f: Filters) {
@@ -28,6 +35,7 @@ function writeFilters(f: Filters) {
   if (f.types.length) qs.set("type", f.types.join(","));
   if (f.statuses.length) qs.set("status", f.statuses.join(","));
   if (f.bbox) qs.set("bbox", f.bbox.join(","));
+  if (f.uninspected) qs.set("uninspected", "true");
   if (f.page > 0) qs.set("page", String(f.page));
   const search = qs.toString();
   window.history.replaceState(null, "", search ? `?${search}` : window.location.pathname);

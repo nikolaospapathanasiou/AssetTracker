@@ -128,7 +128,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .asset-row:hover { background: var(--paper); }
 .asset-row[aria-current="true"] { background: var(--water-soft); box-shadow: inset 3px 0 0 var(--water); }
-.asset-row-name { font-weight: 600; }
+.asset-row-name { font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .asset-row-meta { grid-column: 2; font-size: 0.85rem; color: var(--muted); }
 
 .list-message { padding: 16px; color: var(--muted); }
@@ -147,6 +147,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Status ---------- */
 
 .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+/* Deliberately quieter than the status badge: an extra hint, not a fourth status. */
+.never-inspected-badge {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;

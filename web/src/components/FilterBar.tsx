@@ -46,6 +46,18 @@ export function FilterBar({ filters, onChange }: Props) {
         ))}
       </fieldset>
 
+      <fieldset>
+        <legend>Inspection</legend>
+        <button
+          type="button"
+          className="chip"
+          aria-pressed={filters.uninspected}
+          onClick={() => onChange({ uninspected: !filters.uninspected })}
+        >
+          Never inspected
+        </button>
+      </fieldset>
+
       {filters.bbox && (
         <div className="area-filter">
           <span>Showing assets in the selected map area</span>

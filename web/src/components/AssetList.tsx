@@ -1,5 +1,6 @@
 import type { Asset } from "@asset-tracker/shared";
 import { TYPE_LABEL, formatDate } from "../status";
+import { NeverInspectedBadge } from "./NeverInspectedBadge";
 import { StatusDot } from "./StatusBadge";
 
 interface Props {
@@ -33,10 +34,14 @@ export function AssetList({ assets, total, page, pageSize, selectedId, isLoading
               onClick={() => onSelect(asset.id)}
             >
               <StatusDot status={asset.status} />
-              <span className="asset-row-name">{asset.name}</span>
+              <span className="asset-row-name">
+                {asset.name}
+                <NeverInspectedBadge asset={asset} />
+              </span>
               <span className="asset-row-meta">
-                {TYPE_LABEL[asset.type]},{" "}
-                {asset.last_inspected_at ? `inspected ${formatDate(asset.last_inspected_at)}` : "never inspected"}
+                {/* When there is no inspection date the badge above already says so. */}
+                {TYPE_LABEL[asset.type]}
+                {asset.last_inspected_at && `, inspected ${formatDate(asset.last_inspected_at)}`}
               </span>
             </button>
           </li>
