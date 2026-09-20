@@ -1,12 +1,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssetInput } from "@asset-tracker/shared";
-import { api, type ListParams } from "./client";
+import { api, type ListParams, type SummaryParams } from "./client";
 
 // All server state lives in TanStack Query. Every key starts with "assets",
 // so one invalidation after a write refreshes the list, the map and any open detail.
 const keys = {
   all: ["assets"] as const,
   list: (params: ListParams) => ["assets", "list", params] as const,
+  summary: (params: SummaryParams) => ["assets", "summary", params] as const,
   detail: (id: string) => ["assets", "detail", id] as const,
 };
 
@@ -15,6 +16,14 @@ export function useAssetList(params: ListParams) {
     queryKey: keys.list(params),
     queryFn: () => api.list(params),
     // Keep showing the old results while new filters load, instead of flashing empty.
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAssetSummary(params: SummaryParams) {
+  return useQuery({
+    queryKey: keys.summary(params),
+    queryFn: () => api.summary(params),
     placeholderData: keepPreviousData,
   });
 }
@@ -49,7 +58,11 @@ export function useDeleteAsset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.remove(id),
-    // Only refresh lists. Refetching the deleted asset's detail would just return 404.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets", "list"] }),
+    // Refresh the lists and the counts, but not the deleted asset's own detail query,
+    // which would only refetch a 404.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["assets", "summary"] });
+    },
   });
 }

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { AssetInputSchema, AssetPatchSchema, type AssetListResponse } from "@asset-tracker/shared";
+import { AssetInputSchema, AssetPatchSchema, type AssetListResponse, type AssetSummary } from "@asset-tracker/shared";
 import { notFound, parseOrThrow } from "../http/errors";
-import { ListQuerySchema } from "./list-query";
+import { ListQuerySchema, SummaryQuerySchema } from "./list-query";
 import type { AssetRepository } from "./assets.repository";
 
 const IdParams = z.object({ id: z.uuid({ error: "Not a valid asset id" }) });
@@ -14,6 +14,14 @@ export function assetsRouter(repo: AssetRepository) {
   router.get("/", async (req, res) => {
     const query = parseOrThrow(ListQuerySchema, req.query);
     const body: AssetListResponse = await repo.list(query);
+    res.json(body);
+  });
+
+  // Declared before "/:id", or Express would read "summary" as an asset id.
+  // Takes the same filters as the list; see the repository for which count ignores which.
+  router.get("/summary", async (req, res) => {
+    const query = parseOrThrow(SummaryQuerySchema, req.query);
+    const body: AssetSummary = await repo.summary(query);
     res.json(body);
   });
 

@@ -87,6 +87,40 @@ describe("GET /api/assets", () => {
   });
 });
 
+describe("GET /api/assets/summary", () => {
+  // Fixtures: ok/critical in Boston, warning in NYC, critical in Chicago; two never inspected
+  // (the ok one in Boston and the critical one in Chicago).
+  it("counts every status, the uninspected assets and the total", async () => {
+    const res = await request(app).get("/api/assets/summary").expect(200);
+    expect(res.body).toEqual({ ok: 1, warning: 1, critical: 2, uninspected: 2, total: 4 });
+  });
+
+  it("narrows every count by the filters that no chip owns", async () => {
+    const boston = await request(app).get("/api/assets/summary?bbox=-71.2,42.2,-70.9,42.5").expect(200);
+    expect(boston.body).toEqual({ ok: 1, warning: 0, critical: 1, uninspected: 1, total: 2 });
+  });
+
+  it("keeps the status counts whole, so a picked status is not a dead end", async () => {
+    const res = await request(app).get("/api/assets/summary?status=critical").expect(200);
+    // The three status counts ignore status=critical and still report the full picture,
+    // but the uninspected count honours it: 1 of the 2 critical assets was never inspected.
+    // total honours it too, so it matches what the list would show.
+    expect(res.body).toEqual({ ok: 1, warning: 1, critical: 2, uninspected: 1, total: 2 });
+  });
+
+  it("keeps the uninspected count whole when the inspection filter is on", async () => {
+    const res = await request(app).get("/api/assets/summary?uninspected=true").expect(200);
+    // The status counts narrow to the never inspected assets; uninspected ignores its own
+    // filter, so the chip keeps showing what turning it on gives you.
+    expect(res.body).toEqual({ ok: 1, warning: 0, critical: 1, uninspected: 2, total: 2 });
+  });
+
+  it("rejects paging params instead of quietly ignoring them", async () => {
+    await request(app).get("/api/assets/summary?limit=10").expect(400);
+    await request(app).get("/api/assets/summary?offset=0").expect(400);
+  });
+});
+
 describe("create, edit, delete", () => {
   const newAsset = {
     name: "Sensor New",

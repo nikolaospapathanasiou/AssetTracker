@@ -34,30 +34,51 @@ const bbox = z
   })
   .transform(([minLng, minLat, maxLng, maxLat]) => ({ minLng, minLat, maxLng, maxLat }));
 
+// The params that describe *which* assets match. The list and the summary accept exactly
+// these, so they are written once and spread into both schemas.
+const filterShape = {
+  type: csvEnum(ASSET_TYPES).optional(),
+  status: csvEnum(ASSET_STATUSES).optional(),
+  uninspected: trueFlag.optional(),
+  bbox: bbox.optional(),
+  // Radius search: all three params go together.
+  lat: num.pipe(z.number().min(-90).max(90)).optional(),
+  lng: num.pipe(z.number().min(-180).max(180)).optional(),
+  radius: num.pipe(z.number().positive().max(500_000)).optional(), // meters
+};
+
+// lat/lng/radius are three params for one idea, so they are checked as a group...
+const nearIsComplete = (q: { lat?: number; lng?: number; radius?: number }) => {
+  const given = [q.lat, q.lng, q.radius].filter((v) => v !== undefined).length;
+  return given === 0 || given === 3;
+};
+const nearError = { message: "lat, lng and radius must be used together", path: ["radius"] };
+
+// ...and then folded into one value, so the repository deals with a single optional `near`.
+const foldNear = <T extends { lat?: number; lng?: number; radius?: number }>({ lat, lng, radius, ...rest }: T) => ({
+  ...rest,
+  near: lat !== undefined && lng !== undefined && radius !== undefined ? { lat, lng, radius } : undefined,
+});
+
 // strictObject: an unknown param (e.g. a typo like "types") is a 400, not silently ignored.
 export const ListQuerySchema = z
   .strictObject({
-    type: csvEnum(ASSET_TYPES).optional(),
-    status: csvEnum(ASSET_STATUSES).optional(),
-    uninspected: trueFlag.optional(),
-    bbox: bbox.optional(),
-    // Radius search: all three params go together.
-    lat: num.pipe(z.number().min(-90).max(90)).optional(),
-    lng: num.pipe(z.number().min(-180).max(180)).optional(),
-    radius: num.pipe(z.number().positive().max(500_000)).optional(), // meters
+    ...filterShape,
     limit: num.pipe(z.number().int().min(1).max(500)).optional().default(50),
     offset: num.pipe(z.number().int().min(0)).optional().default(0),
   })
-  .refine(
-    (q) => {
-      const given = [q.lat, q.lng, q.radius].filter((v) => v !== undefined).length;
-      return given === 0 || given === 3;
-    },
-    { message: "lat, lng and radius must be used together", path: ["radius"] },
-  )
-  .transform(({ lat, lng, radius, ...rest }) => ({
-    ...rest,
-    near: lat !== undefined && lng !== undefined && radius !== undefined ? { lat, lng, radius } : undefined,
-  }));
+  .refine(nearIsComplete, nearError)
+  .transform(foldNear);
+
+// The summary takes the same filters, without the paging params: it counts the whole
+// matching set rather than returning a page of it. Being strict means sending `limit`
+// or `offset` here is a 400, not a silent no-op. Which counts honour which filter is
+// decided in the repository, not here.
+export const SummaryQuerySchema = z.strictObject(filterShape).refine(nearIsComplete, nearError).transform(foldNear);
 
 export type ListQuery = z.infer<typeof ListQuerySchema>;
+export type SummaryQuery = z.infer<typeof SummaryQuerySchema>;
+
+// What the WHERE builder needs: the filters, without the paging params.
+// A SummaryQuery fits this too, which is why both endpoints can share one builder.
+export type AssetFilters = Omit<ListQuery, "limit" | "offset">;

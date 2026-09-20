@@ -1,28 +1,30 @@
 import type pg from "pg";
-import type { Asset, AssetInput, Page } from "@asset-tracker/shared";
-import type { ListQuery } from "./list-query";
+import type { Asset, AssetInput, AssetSummary, Page } from "@asset-tracker/shared";
+import type { AssetFilters, ListQuery, SummaryQuery } from "./list-query";
 
 // The columns the API exposes, in the same shape as the seed file.
 const COLUMNS = `id, name, type, status, lat, lng, installed_at, last_inspected_at, notes`;
 
-// Builds a parameterised WHERE clause. Values always go through $1, $2... never string concatenation.
-function buildWhere(q: ListQuery) {
-  const conditions: string[] = [];
+// Splits the filters into parameterised SQL conditions. Values always go through
+// $1, $2... never string concatenation.
+//
+// `scope` is the part every count agrees on. `status` and `uninspected` are kept apart
+// because each is controlled by a chip in the UI, and a chip's count has to answer
+// "how many would I get if I turned this on", which means leaving its own filter out.
+// (A type count would need the same treatment; there isn't one yet, so type is in scope.)
+function buildFilters(q: AssetFilters) {
+  const scope: string[] = [];
   const params: unknown[] = [];
   const param = (value: unknown) => {
     params.push(value);
     return `$${params.length}`;
   };
 
-  if (q.type) conditions.push(`type = ANY(${param(q.type)})`);
-  if (q.status) conditions.push(`status = ANY(${param(q.status)})`);
-  // Filtered in SQL rather than in the client, because the list is paginated:
-  // only the server sees the whole matching set it has to page and count.
-  if (q.uninspected) conditions.push(`last_inspected_at IS NULL`);
+  if (q.type) scope.push(`type = ANY(${param(q.type)})`);
 
   if (q.bbox) {
     const { minLng, minLat, maxLng, maxLat } = q.bbox;
-    conditions.push(
+    scope.push(
       `ST_Intersects(geom, ST_MakeEnvelope(${param(minLng)}, ${param(minLat)}, ${param(maxLng)}, ${param(maxLat)}, 4326))`,
     );
   }
@@ -30,18 +32,30 @@ function buildWhere(q: ListQuery) {
   if (q.near) {
     // geography makes the distance real meters on the Earth's surface, not degrees.
     const { lat, lng, radius } = q.near;
-    conditions.push(
+    scope.push(
       `ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(${param(lng)}, ${param(lat)}), 4326)::geography, ${param(radius)})`,
     );
   }
 
-  return { where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "", params };
+  // Both are filtered in SQL rather than in the client, because the list is paginated:
+  // only the server sees the whole matching set it has to page and count.
+  const status = q.status ? `status = ANY(${param(q.status)})` : null;
+  const uninspected = q.uninspected ? `last_inspected_at IS NULL` : null;
+
+  return { scope, status, uninspected, params };
 }
+
+// Drops the conditions that aren't in play, and omits WHERE entirely if none are.
+const whereFrom = (conditions: (string | null)[]) => {
+  const active = conditions.filter((c) => c !== null);
+  return active.length ? `WHERE ${active.join(" AND ")}` : "";
+};
 
 export function createAssetRepository(pool: pg.Pool) {
   return {
     async list(q: ListQuery): Promise<{ data: Asset[]; page: Page }> {
-      const { where, params } = buildWhere(q);
+      const { scope, status, uninspected, params } = buildFilters(q);
+      const where = whereFrom([...scope, status, uninspected]);
       const n = params.length;
       const [rows, count] = await Promise.all([
         pool.query<Asset>(
@@ -52,6 +66,33 @@ export function createAssetRepository(pool: pg.Pool) {
         pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM assets ${where}`, params),
       ]);
       return { data: rows.rows, page: { limit: q.limit, offset: q.offset, total: count.rows[0]!.total } };
+    },
+
+    // One row of counts for the current filters, in a single pass: FILTER applies a
+    // condition to one aggregate, so this is one index scan rather than five queries.
+    //
+    // WHERE narrows to the scope only. The status and inspection conditions move into the
+    // FILTER clauses, so each count can leave out the one its own chip controls:
+    //   - the three status counts ignore `status`, or picking "Critical" would leave the
+    //     other two chips reading 0 with no way to click back to them
+    //   - the uninspected count ignores `uninspected` but honours `status`, so with "OK"
+    //     picked it reads "how many OK assets have never been inspected"
+    //   - total honours both, so it matches what the list is showing
+    async summary(q: SummaryQuery): Promise<AssetSummary> {
+      const { scope, status, uninspected, params } = buildFilters(q);
+      const and = (condition: string | null) => (condition ? ` AND ${condition}` : "");
+      const count = (condition: string) => `count(*) FILTER (WHERE ${condition})::int`;
+
+      const { rows } = await pool.query<AssetSummary>(
+        `SELECT ${count(`status = 'ok'${and(uninspected)}`)} AS ok,
+                ${count(`status = 'warning'${and(uninspected)}`)} AS warning,
+                ${count(`status = 'critical'${and(uninspected)}`)} AS critical,
+                ${count(`last_inspected_at IS NULL${and(status)}`)} AS uninspected,
+                ${count(`TRUE${and(status)}${and(uninspected)}`)} AS total
+         FROM assets ${whereFrom(scope)}`,
+        params,
+      );
+      return rows[0]!;
     },
 
     async get(id: string): Promise<Asset | null> {

@@ -1,18 +1,30 @@
-import { ASSET_STATUSES, ASSET_TYPES } from "@asset-tracker/shared";
+import { ASSET_STATUSES, ASSET_TYPES, type AssetSummary } from "@asset-tracker/shared";
 import type { Filters } from "../hooks/useFilters";
 import { STATUS_LABEL, TYPE_LABEL } from "../status";
 import { StatusDot } from "./StatusBadge";
 
 interface Props {
   filters: Filters;
+  // Counts from /api/assets/summary, undefined until the first load. Each count leaves out
+  // the filter its own chip controls and honours all the others, so a chip always reads
+  // "how many you would get if you turned this on". That is why picking "Critical" keeps
+  // the other two status counts alive, while the inspection count drops to the never
+  // inspected assets among the critical ones.
+  summary: AssetSummary | undefined;
   onChange: (change: Partial<Filters>) => void;
+}
+
+// Kept out of the chip when the counts haven't arrived yet, rather than showing a zero.
+function Count({ value }: { value: number | undefined }) {
+  if (value === undefined) return null;
+  return <span className="chip-count">{value}</span>;
 }
 
 // Adds the value if missing, removes it if present.
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
 // An empty selection means "all", which is also what the API does when a param is left out.
-export function FilterBar({ filters, onChange }: Props) {
+export function FilterBar({ filters, summary, onChange }: Props) {
   return (
     <div className="filters">
       <fieldset>
@@ -42,6 +54,7 @@ export function FilterBar({ filters, onChange }: Props) {
           >
             <StatusDot status={status} />
             {STATUS_LABEL[status]}
+            <Count value={summary?.[status]} />
           </button>
         ))}
       </fieldset>
@@ -55,6 +68,7 @@ export function FilterBar({ filters, onChange }: Props) {
           onClick={() => onChange({ uninspected: !filters.uninspected })}
         >
           Never inspected
+          <Count value={summary?.uninspected} />
         </button>
       </fieldset>
 

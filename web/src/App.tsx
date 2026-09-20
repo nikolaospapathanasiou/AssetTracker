@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ASSET_STATUSES, type AssetInput } from "@asset-tracker/shared";
-import { useAsset, useAssetList, useCreateAsset, useDeleteAsset, useUpdateAsset } from "./api/hooks";
+import { useAsset, useAssetList, useAssetSummary, useCreateAsset, useDeleteAsset, useUpdateAsset } from "./api/hooks";
 import { ApiError } from "./api/client";
 import { useFilters } from "./hooks/useFilters";
 import { AssetDetail } from "./components/AssetDetail";
@@ -31,6 +31,7 @@ export function App() {
   const shared = { types: filters.types, statuses: filters.statuses, bbox: filters.bbox, uninspected: filters.uninspected };
   const list = useAssetList({ ...shared, limit: PAGE_SIZE, offset: filters.page * PAGE_SIZE });
   const markers = useAssetList({ ...shared, limit: MAP_LIMIT, offset: 0 });
+  const summary = useAssetSummary(shared);
 
   const selectedId = panel && panel.mode !== "create" ? panel.id : null;
   const selected = useAsset(selectedId);
@@ -68,7 +69,7 @@ export function App() {
       </header>
 
       <aside className="sidebar">
-        <FilterBar filters={filters} onChange={setFilters} />
+        <FilterBar filters={filters} summary={summary.data} onChange={setFilters} />
         {list.isError ? (
           <p className="list-message form-error">Could not load assets: {list.error.message}</p>
         ) : (

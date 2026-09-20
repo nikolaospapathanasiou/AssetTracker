@@ -61,6 +61,10 @@ export interface Page {
   total: number;
 }
 
+// One count per status, plus the two totals. Keyed off ASSET_STATUSES so adding a
+// status to the enum is a type error here until the summary handles it.
+export type AssetSummary = Record<AssetStatus, number> & { uninspected: number; total: number };
+
 export interface AssetListResponse {
   data: Asset[];
   page: Page;
