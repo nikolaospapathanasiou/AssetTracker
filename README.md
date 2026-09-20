@@ -1,5 +1,7 @@
 # Asset tracker
 
+![alt text](image.png)
+
 A small web app for an asset team to see, filter, find, create, edit and delete physical assets on a map.
 
 - **Backend:** Node.js, Express 5, TypeScript, PostgreSQL + PostGIS
