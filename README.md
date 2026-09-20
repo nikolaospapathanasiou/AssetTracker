@@ -38,7 +38,7 @@ server/
     app.ts, index.ts           app factory and startup
     http/                      error format, request logging
     assets/
-      list-query.ts            parsing and validating list query params
+      list-query.ts            parsing and validating query params (list and summary)
       assets.repository.ts     all SQL
       assets.routes.ts         thin HTTP handlers
   test/                        integration tests against a real PostGIS DB
@@ -65,6 +65,7 @@ Codes: `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `INTERNAL_ERROR` (500, detai
 |---|---|---|
 | `type` | `pipe,valve` | comma-separated, any of `pipe`, `hydrant`, `sensor`, `valve` |
 | `status` | `warning,critical` | comma-separated, any of `ok`, `warning`, `critical` |
+| `uninspected` | `true` | only assets with no inspection on record; `true` is the only accepted value |
 | `bbox` | `-71.2,42.2,-70.9,42.5` | `minLng,minLat,maxLng,maxLat` (GeoJSON order) |
 | `lat`, `lng`, `radius` | `lat=42.36&lng=-71.06&radius=1000` | radius in meters; all three together |
 | `limit` | `50` | default 50, max 500 |
@@ -77,6 +78,22 @@ Filters combine with AND. Results are ordered by name (id as tie-breaker, so pag
               "installed_at": "2001-12-22", "last_inspected_at": null, "notes": "" } ],
   "page": { "limit": 50, "offset": 0, "total": 150 } }
 ```
+
+### `GET /api/assets/summary`
+
+Counts for the current filters, in one query. Takes the same params as the list except `limit` and `offset`, which are rejected: a summary counts the whole matching set rather than a page of it.
+
+```json
+{ "ok": 102, "warning": 32, "critical": 16, "uninspected": 45, "total": 150 }
+```
+
+Each count leaves out the filter that its own chip in the UI controls, and honours all the others, so a count always answers "how many would I get if I turned this on".
+
+| Count | Ignores | With `?status=ok` |
+|---|---|---|
+| `ok`, `warning`, `critical` | `status` | `102, 32, 16`, unchanged, so the other statuses are still worth clicking |
+| `uninspected` | `uninspected` | `30`, the OK assets never inspected, not the fleet-wide `45` |
+| `total` | nothing | `102`, the same number as `page.total` on the list |
 
 ### Other endpoints
 
@@ -100,6 +117,12 @@ The resource shape matches the seed file (snake_case), so the data contract stay
 
 **Offset pagination with a total.** Simple, lets the UI show "26–50 of 137", and fine at this size. With a large or fast-changing table I'd switch to keyset (cursor) pagination on `(name, id)`, because offsets get slow and rows can shift between pages.
 
+**"Never inspected" is a column check, not an invented rule.** The obvious richer version of this filter is "overdue", but that needs an inspection interval, and neither the brief nor the data says what it should be. The seed dates run evenly from 2000 to 2025, so any interval I picked would set the size of the answer: five years flags 77% of the fleet, ten years 55%. That is a business rule I would be making up. The filter is instead the thing the data actually states, `last_inspected_at IS NULL`, which needs no explaining and cannot be wrong. A real interval belongs in configuration, alongside the inspection history table under "what I'd do next".
+
+**Filtering and counting happen in SQL.** Both could be done in JavaScript over the rows already fetched, but the list is paginated, so the client only ever holds 25 of them. Only the server sees the whole matching set it has to page, count and summarise. So `uninspected=true` is one `IS NULL` condition in the existing WHERE builder, and the summary is a single query where `count(*) FILTER (WHERE ...)` puts five aggregates into one index scan instead of five round trips.
+
+**Each count ignores the filter its own chip controls.** This is what makes the numbers on the chips trustworthy. If the status counts honoured `status`, picking "Critical" would leave OK and Warning reading 0, which is both useless and a dead end. If the inspection count ignored `status` as well, it would keep saying 45 while the list showed only OK assets, which is worse: a number that looks filtered and is not. So the repository splits the filters into a `scope` that no chip owns (type, area, radius) and the two chip filters. `scope` goes in the WHERE; the other two move into the `FILTER` clauses, where each aggregate picks the ones that apply to it. The list still joins all three into one WHERE, so it is unaffected.
+
 **Validation in one place.** `shared/src/asset.ts` defines the rules once. The form uses them for instant feedback; the API runs them again because it can't trust clients. The DB has matching `CHECK` constraints as a last line of defense. The cross-field rule (last inspection not before install) is where this matters most.
 
 **PATCH validates the merged record.** A patch like `{ "last_inspected_at": "2019-01-01" }` is valid on its own, but not if the stored install date is 2020. So the handler loads the asset, merges the patch, and validates the full result. Tradeoff: read-then-write without a transaction, so two simultaneous edits could race. Fine here; a real system would use a transaction with `SELECT ... FOR UPDATE` or an optimistic `version` column.
@@ -113,6 +136,7 @@ The resource shape matches the seed file (snake_case), so the data contract stay
 - Filters live in the URL, so a filtered view survives a refresh and can be shared.
 - The side panel is a single state value (`view` / `edit` / `create`), so impossible combinations can't happen.
 - The list and the map run separate queries: the list pages 25 at a time, the map asks for up to 500 in view. If there are more, the map says so instead of silently dropping markers.
+- The chip counts are a third query on the same filters. It is cached under the same `assets` key, so a create or an edit refreshes the counts along with everything else.
 
 **Leaflet.** Mature, small, no API key, and plenty for ~150 points. I used circle markers: color-coded by status, no marker image files to bundle, and drawn in priority order so a critical asset is never hidden behind an OK one in a dense area. MapLibre would be the pick for vector tiles or thousands of points.
 
